@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Report Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0a;--surface:#141414;--card:#1a1a1a;--steel:#1e1e1e;
+  --red:#d42b2b;--white:#f0f0f0;--chrome:#aaa;--dim:#555;--border:rgba(255,255,255,0.07);
+  --green:#2aaa55;--amber:#e8a800;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--white);font-family:'Barlow',sans-serif;min-height:100vh;padding-bottom:2rem;}
+
+/* LOGIN */
+.login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99999;padding:2rem;}
+.login-screen.hidden{display:none;}
+.login-box{background:var(--surface);border:1px solid var(--border);width:100%;max-width:360px;overflow:hidden;}
+.login-header{background:var(--card);padding:1.8rem;text-align:center;border-bottom:1px solid var(--border);}
+.login-logo{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:0.2em;color:var(--white);}
+.login-logo span{color:var(--red);}
+.login-sub{font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--dim);margin-top:0.3rem;}
+.login-body{padding:1.8rem;}
+.login-field{display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;}
+.login-field label{font-family:'Barlow Condensed',sans-serif;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--dim);}
+.login-field input{background:var(--steel);border:1px solid var(--border);color:var(--white);font-family:'Barlow',sans-serif;font-size:1rem;padding:0.75rem 1rem;outline:none;-webkit-appearance:none;width:100%;transition:border-color 0.15s;}
+.login-field input:focus{border-color:var(--red);}
+.login-btn{width:100%;background:var(--red);color:#fff;border:none;font-family:'Barlow Condensed',sans-serif;font-size:1rem;letter-spacing:0.2em;text-transform:uppercase;padding:0.9rem;cursor:pointer;min-height:48px;touch-action:manipulation;}
+.login-error{color:#ff6b6b;font-size:0.8rem;text-align:center;margin-top:0.75rem;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.1em;display:none;}
+.login-error.show{display:block;}
+
+/* TOPBAR */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.topbar-title{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:0.1em;}
+.topbar-actions{display:flex;gap:0.75rem;align-items:center;}
+.btn{font-family:'Barlow Condensed',sans-serif;font-size:0.8rem;letter-spacing:0.15em;text-transform:uppercase;border:none;padding:0.55rem 1.2rem;cursor:pointer;transition:all 0.15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;min-height:40px;}
+.btn-ghost{background:transparent;color:var(--chrome);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--chrome);color:var(--white);}
+.btn-red{background:var(--red);color:#fff;}
+
+/* FILTERS */
+.filters{padding:1rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:1rem;flex-wrap:wrap;align-items:center;}
+.filter-group{display:flex;flex-direction:column;gap:0.3rem;}
+.filter-group label{font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--dim);}
+.filter-group input,.filter-group select{background:var(--card);border:1px solid var(--border);color:var(--white);font-family:'Barlow',sans-serif;font-size:0.85rem;padding:0.45rem 0.75rem;outline:none;-webkit-appearance:none;}
+.filter-group input:focus,.filter-group select:focus{border-color:var(--red);}
+
+/* CONTENT */
+.content{padding:1.5rem;max-width:1000px;margin:0 auto;}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;}
+.stat-card{background:var(--card);border:1px solid var(--border);padding:1rem 1.2rem;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+.stat-card.red::before{background:var(--red);}
+.stat-card.green::before{background:var(--green);}
+.stat-card.amber::before{background:var(--amber);}
+.stat-card.blue::before{background:#2a7aaa;}
+.stat-label{font-family:'Barlow Condensed',sans-serif;font-size:0.68rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--dim);margin-bottom:0.4rem;}
+.stat-value{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;line-height:1;}
+.stat-card.red .stat-value{color:var(--red);}
+.stat-card.green .stat-value{color:var(--green);}
+.stat-card.amber .stat-value{color:var(--amber);}
+.stat-card.blue .stat-value{color:#2a7aaa;}
+
+/* REPORT CARDS */
+.report-card{background:var(--card);border:1px solid var(--border);margin-bottom:1rem;overflow:hidden;cursor:pointer;transition:border-color 0.15s;}
+.report-card:hover{border-color:rgba(212,43,43,0.4);}
+.report-head{padding:1rem 1.2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.report-info{flex:1;}
+.report-reg{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:0.1em;color:var(--white);}
+.report-customer{font-family:'Barlow Condensed',sans-serif;font-size:0.82rem;letter-spacing:0.1em;color:var(--chrome);margin-top:0.1rem;}
+.report-meta{font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-top:0.2rem;}
+.report-pills{display:flex;gap:0.5rem;align-items:center;}
+.pill{font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;padding:0.25rem 0.6rem;border-radius:2px;}
+.pill-pass{background:rgba(42,170,85,0.15);color:var(--green);border:1px solid rgba(42,170,85,0.3);}
+.pill-advisory{background:rgba(232,168,0,0.15);color:var(--amber);border:1px solid rgba(232,168,0,0.3);}
+.pill-fail{background:rgba(212,43,43,0.15);color:#ff6b6b;border:1px solid rgba(212,43,43,0.3);}
+.report-expand{font-size:1.2rem;color:var(--dim);transition:transform 0.2s;}
+.report-card.open .report-expand{transform:rotate(180deg);}
+
+/* EXPANDED DETAIL */
+.report-detail{display:none;border-top:1px solid var(--border);}
+.report-card.open .report-detail{display:block;}
+.detail-section{padding:1rem 1.2rem;border-bottom:1px solid var(--border);}
+.detail-section:last-child{border-bottom:none;}
+.detail-title{font-family:'Barlow Condensed',sans-serif;font-size:0.7rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--red);margin-bottom:0.75rem;}
+.check-item{display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.03);}
+.check-item:last-child{border-bottom:none;}
+.check-name{font-size:0.85rem;color:var(--chrome);}
+.check-result{font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.15rem 0.5rem;}
+.check-notes-text{font-size:0.78rem;color:var(--dim);margin-top:0.2rem;font-style:italic;}
+.advisory-box{background:rgba(232,168,0,0.08);border:1px solid rgba(232,168,0,0.2);padding:0.75rem 1rem;font-size:0.88rem;color:var(--chrome);line-height:1.6;}
+.report-actions{padding:0.75rem 1.2rem;display:flex;gap:0.75rem;background:var(--steel);}
+
+/* EMPTY */
+.empty{text-align:center;padding:4rem 1rem;color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;letter-spacing:0.1em;text-transform:uppercase;}
+.empty .e-icon{font-size:2.5rem;display:block;margin-bottom:1rem;}
+
+/* MONTH GROUP */
+.month-label{font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:0.15em;color:var(--dim);padding:0.5rem 0 0.75rem;margin-top:0.5rem;}
+
+@media(max-width:600px){
+  .stats{grid-template-columns:1fr 1fr;}
+  .filters{flex-direction:column;align-items:stretch;}
+  .filter-group input,.filter-group select{width:100%;}
+  .topbar{padding:0.75rem 1rem;}
+  .content{padding:1rem;}
+  .report-pills{flex-wrap:wrap;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-header">
+      <div class="login-logo">SERVICE REPORT <span>TRACKER</span></div>
+      <div class="login-sub">Staff Access Only</div>
+    </div>
+    <div class="login-body">
+      <div class="login-field">
+        <label>Username</label>
+        <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username">
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="login-btn" ontouchstart="doLogin()" onclick="doLogin()">Login</button>
+      <div class="login-error" id="loginError">Incorrect username or password</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-title">🩺 Service Report Tracker</div>
+  <div class="topbar-actions">
+    <button class="btn btn-ghost" onclick="exportCSV()">📥 Export</button>
+    <button class="btn btn-ghost" onclick="signOut()" style="border-color:rgba(212,43,43,0.4);color:var(--red);">Sign Out</button>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="filters">
+  <div class="filter-group">
+    <label>Search Reg / Customer</label>
+    <input type="text" id="searchInput" placeholder="e.g. AB12 CDE" oninput="renderReports()">
+  </div>
+  <div class="filter-group">
+    <label>Month</label>
+    <select id="monthFilter" onchange="renderReports()">
+      <option value="">All Months</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Result Filter</label>
+    <select id="resultFilter" onchange="renderReports()">
+      <option value="">All Reports</option>
+      <option value="fail">Has Fails</option>
+      <option value="advisory">Has Advisories</option>
+      <option value="pass">All Pass</option>
+    </select>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+  <div class="stats">
+    <div class="stat-card blue">
+      <div class="stat-label">Total Reports</div>
+      <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">All Pass</div>
+      <div class="stat-value" id="stat-pass">0</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="stat-label">Has Advisories</div>
+      <div class="stat-value" id="stat-adv">0</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Has Fails</div>
+      <div class="stat-value" id="stat-fail">0</div>
+    </div>
+  </div>
+
+  <div id="reportsList"></div>
+</div>
+
+<script>
+const USERS = { 'stephen':'garage2024', 'neil':'garage2024' };
+
+// ── SUPABASE ──
+const SB = 'https://hzbwjjypdcejcwtwalsp.supabase.co/rest/v1';
+const SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6YndqanlwZGNlamN3dHdhbHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NTQ0NDcsImV4cCI6MjA5NjMzMDQ0N30.XCgZ2_3SRrJYwpm43rnsPTCnE_zT6x4VzILUF_AmR1M';
+const SH = {'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=minimal'};
+let online = false;
+
+function localSave(reports) {
+  try { localStorage.setItem('health_tracker', JSON.stringify(reports)); } catch(e){}
+}
+
+function pullReports() {
+  fetch(SB+'/reports?order=createdat.desc', {headers:SH})
+    .then(r=>r.json())
+    .then(rows=>{
+      if(Array.isArray(rows)) {
+        // Parse checks from jsonb
+        rows = rows.map(r=>({...r, checks: typeof r.checks==='string'?JSON.parse(r.checks):r.checks||[]}));
+        localSave(rows);
+        renderReports();
+        showSynced();
+      }
+    })
+    .catch(()=>{});
+}
+
+function showSynced() {
+  const el = document.getElementById('syncStatus');
+  if(el) { el.textContent='☁️ Live & Synced'; el.style.color='var(--green)'; }
+}
+
+function connectSupabase() {
+  let attempts = 0;
+  function tryConnect() {
+    attempts++;
+    fetch(SB+'/reports?limit=1', {headers:SH})
+      .then(r=>{
+        if(r.ok){ online=true; pullReports(); setInterval(pullReports,20000); }
+        else if(attempts<4) setTimeout(tryConnect,3000);
+        else { const el=document.getElementById('syncStatus'); if(el){el.textContent='📱 Local only';el.style.color='var(--amber)';} }
+      })
+      .catch(()=>{ if(attempts<4) setTimeout(tryConnect,3000); else { const el=document.getElementById('syncStatus'); if(el){el.textContent='📱 Local only';el.style.color='var(--amber)';} } });
+  }
+  setTimeout(tryConnect, 1500);
+}
+
+function doLogin() {
+  const user = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  if(USERS[user] && USERS[user]===pass) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    sessionStorage.setItem('tracker_auth', user);
+    err.classList.remove('show');
+    init();
+  } else {
+    err.classList.add('show');
+    document.getElementById('loginPass').value='';
+  }
+}
+
+function signOut() {
+  sessionStorage.removeItem('tracker_auth');
+  location.reload();
+}
+
+function loadReports() {
+  try {
+    const saved = localStorage.getItem('health_tracker');
+    return saved ? JSON.parse(saved) : [];
+  } catch(e) { return []; }
+}
+
+function deleteReportFromSupabase(id) {
+  if(online) {
+    fetch(SB+'/reports?id=eq.'+id, {method:'DELETE', headers:SH}).catch(()=>{});
+  }
+}
+
+function deleteReport(id) {
+  let reports = loadReports();
+  reports = reports.filter(r=>r.id!==id);
+  localSave(reports);
+  deleteReportFromSupabase(id);
+  renderReports();
+}
+
+function populateMonthFilter(reports) {
+  const months = [...new Set(reports.map(r=>r.date.slice(0,7)))].sort().reverse();
+  const sel = document.getElementById('monthFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Months</option>';
+  months.forEach(m => {
+    const [y,mo] = m.split('-');
+    const label = new Date(y, mo-1).toLocaleString('default',{month:'long',year:'numeric'});
+    sel.innerHTML += `<option value="${m}" ${m===current?'selected':''}>${label}</option>`;
+  });
+}
+
+function renderReports() {
+  const reports = loadReports();
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const month = document.getElementById('monthFilter').value;
+  const result = document.getElementById('resultFilter').value;
+
+  populateMonthFilter(reports);
+
+  // Update stats
+  document.getElementById('stat-total').textContent = reports.length;
+  document.getElementById('stat-pass').textContent = reports.filter(r=>r.fail===0&&r.advisory===0).length;
+  document.getElementById('stat-adv').textContent = reports.filter(r=>r.advisory>0).length;
+  document.getElementById('stat-fail').textContent = reports.filter(r=>r.fail>0).length;
+
+  // Filter
+  let filtered = reports.filter(r => {
+    if(search && !r.reg.toLowerCase().includes(search) && !r.customer.toLowerCase().includes(search)) return false;
+    if(month && !r.date.startsWith(month)) return false;
+    if(result==='fail' && r.fail===0) return false;
+    if(result==='advisory' && r.advisory===0) return false;
+    if(result==='pass' && (r.fail>0||r.advisory>0)) return false;
+    return true;
+  });
+
+  const container = document.getElementById('reportsList');
+
+  if(!filtered.length) {
+    container.innerHTML = `<div class="empty"><span class="e-icon">🩺</span>No reports found<br><br>Fill in a service report and tap "Save to Tracker" to see it here.</div>`;
+    return;
+  }
+
+  // Group by month
+  const grouped = {};
+  filtered.forEach(r => {
+    const m = r.date.slice(0,7);
+    if(!grouped[m]) grouped[m] = [];
+    grouped[m].push(r);
+  });
+
+  let html = '';
+  Object.keys(grouped).sort().reverse().forEach(m => {
+    const [y,mo] = m.split('-');
+    const label = new Date(y, mo-1).toLocaleString('default',{month:'long',year:'numeric'});
+    html += `<div class="month-label">📅 ${label} — ${grouped[m].length} report${grouped[m].length!==1?'s':''}</div>`;
+    grouped[m].forEach(r => {
+      const allPass = r.fail===0&&r.advisory===0;
+      html += `
+      <div class="report-card" id="card-${r.id}">
+        <div class="report-head" onclick="toggleCard('${r.id}')">
+          <div class="report-info">
+            <div class="report-reg">${r.reg}</div>
+            <div class="report-customer">${r.customer}</div>
+            <div class="report-meta">${r.date} · ${r.id}</div>
+          </div>
+          <div class="report-pills">
+            ${r.pass>0?`<span class="pill pill-pass">✓ ${r.pass} Pass</span>`:''}
+            ${r.advisory>0?`<span class="pill pill-advisory">⚠ ${r.advisory} Advisory</span>`:''}
+            ${r.fail>0?`<span class="pill pill-fail">✗ ${r.fail} Fail</span>`:''}
+            ${allPass?`<span class="pill pill-pass">✅ All Clear</span>`:''}
+          </div>
+          <div class="report-expand">▼</div>
+        </div>
+        <div class="report-detail">
+          ${r.checks && r.checks.length ? `
+          <div class="detail-section">
+            <div class="detail-title">Health Check Results</div>
+            ${r.checks.map(c=>`
+              <div class="check-item">
+                <div>
+                  <div class="check-name">${c.item}</div>
+                  ${c.notes?`<div class="check-notes-text">${c.notes}</div>`:''}
+                </div>
+                <span class="check-result pill ${c.result==='pass'?'pill-pass':c.result==='advisory'?'pill-advisory':'pill-fail'}">
+                  ${c.result==='pass'?'✓ Pass':c.result==='advisory'?'⚠ Advisory':'✗ Fail'}
+                </span>
+              </div>`).join('')}
+          </div>` : ''}
+          ${r.advisoryNotes ? `
+          <div class="detail-section">
+            <div class="detail-title">Advisory Notes</div>
+            <div class="advisory-box">${r.advisoryNotes}</div>
+          </div>` : ''}
+          <div class="report-actions">
+            <button class="btn btn-ghost" style="font-size:0.75rem;" onclick="window.print()">🖨 Print</button>
+            <button class="btn btn-ghost" style="font-size:0.75rem;border-color:rgba(212,43,43,0.4);color:var(--red);" onclick="deleteReport('${r.id}')">🗑 Delete</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleCard(id) {
+  const card = document.getElementById('card-'+id);
+  card.classList.toggle('open');
+}
+
+function exportCSV() {
+  const reports = loadReports();
+  if(!reports.length) { alert('No reports to export.'); return; }
+  let csv = 'Date,Reg,Customer,Report Ref,Pass,Advisory,Fail,Advisory Notes\n';
+  reports.forEach(r => {
+    csv += `"${r.date}","${r.reg}","${r.customer}","${r.id}","${r.pass}","${r.advisory}","${r.fail}","${(r.advisoryNotes||'').replace(/"/g,"'")}"\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'health-check-tracker.csv';
+  a.click();
+}
+
+function init() {
+  renderReports();
+  connectSupabase();
+}
+
+// Check login
+if(sessionStorage.getItem('tracker_auth') && USERS[sessionStorage.getItem('tracker_auth')]) {
+  document.getElementById('loginScreen').classList.add('hidden');
+  init();
+}
+</script>
+</body>
+</html>
