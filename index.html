@@ -224,6 +224,8 @@ const USERS = { 'stephen':'Autoservice2026', 'neil':'Autoservice2026' };
 const SB = 'https://hzbwjjypdcejcwtwalsp.supabase.co/rest/v1';
 const SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6YndqanlwZGNlamN3dHdhbHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NTQ0NDcsImV4cCI6MjA5NjMzMDQ0N30.XCgZ2_3SRrJYwpm43rnsPTCnE_zT6x4VzILUF_AmR1M';
 const SH = {'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};
+const SB_ROOT = SB.replace('/rest/v1', '');
+const PHOTO_BUCKET = 'vehicle-photos';
 
 function setSyncStatus(msg, color) {
   const el = document.getElementById('syncStatus');
@@ -241,11 +243,12 @@ function loadReports() {
     const saved = localStorage.getItem('health_tracker');
     if(!saved) return [];
     const parsed = JSON.parse(saved);
-    // Parse any stringified checks/workItems
+    // Parse any stringified checks/workItems/photos
     return parsed.map(r => ({
       ...r,
       checks: typeof r.checks === 'string' ? JSON.parse(r.checks) : (r.checks || []),
-      workItems: typeof r.workItems === 'string' ? JSON.parse(r.workItems) : (r.workItems || [])
+      workItems: typeof r.workItems === 'string' ? JSON.parse(r.workItems) : (r.workItems || []),
+      photos: typeof r.photos === 'string' ? tryParse(r.photos, []) : (r.photos || [])
     }));
   } catch(e) { return []; }
 }
@@ -258,15 +261,32 @@ function pullReports() {
       const parsed = rows.map(r=>({
         ...r,
         checks: typeof r.checks==='string' ? tryParse(r.checks, []) : (r.checks||[]),
-        workItems: typeof r.workItems==='string' ? tryParse(r.workItems, []) : (r.workItems||[])
+        workItems: typeof r.workItems==='string' ? tryParse(r.workItems, []) : (r.workItems||[]),
+        photos: typeof r.photos==='string' ? tryParse(r.photos, []) : (r.photos||[])
       }));
 
       // Merge with local: cloud wins for same ID, keep local-only records
       const local = loadReports();
       const cloudIds = new Set(parsed.map(r=>r.id));
+
+      // For records that exist in both places, preserve any local photos that
+      // haven't made it to the cloud yet (e.g. uploaded while offline) so they
+      // aren't lost when the cloud version overwrites the local record.
+      const merged = parsed.map(cloudRecord => {
+        const localRecord = local.find(l => l.id === cloudRecord.id);
+        if(localRecord && localRecord.photos && localRecord.photos.length) {
+          const cloudUrls = new Set((cloudRecord.photos||[]).map(p=>p.url).filter(Boolean));
+          const localOnlyPhotos = localRecord.photos.filter(p => p.data && (!p.url || !cloudUrls.has(p.url)));
+          if(localOnlyPhotos.length) {
+            cloudRecord = { ...cloudRecord, photos: [...(cloudRecord.photos||[]), ...localOnlyPhotos] };
+          }
+        }
+        return cloudRecord;
+      });
+
       const localOnly = local.filter(r=>!cloudIds.has(r.id));
-      const merged = [...parsed, ...localOnly].sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''));
-      localSave(merged);
+      const finalMerged = [...merged, ...localOnly].sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''));
+      localSave(finalMerged);
       renderReports();
       setSyncStatus('☁️ Live & Synced', 'green');
     })
@@ -280,9 +300,26 @@ function tryParse(str, fallback) {
 function deleteReport(id) {
   if(!confirm('Delete this report? This cannot be undone.')) return;
   let reports = loadReports();
+  const report = reports.find(r=>r.id===id);
   reports = reports.filter(r=>r.id!==id);
   localSave(reports);
   fetch(SB+'/reports?id=eq.'+encodeURIComponent(id), {method:'DELETE', headers:SH}).catch(()=>{});
+
+  // Clean up any cloud-stored photos for this report so storage doesn't fill up
+  if(report && report.photos && report.photos.length) {
+    report.photos.forEach(p => {
+      if(!p.url) return;
+      const marker = `/object/public/${PHOTO_BUCKET}/`;
+      const idx = p.url.indexOf(marker);
+      if(idx === -1) return;
+      const path = p.url.slice(idx + marker.length);
+      fetch(`${SB_ROOT}/storage/v1/object/${PHOTO_BUCKET}/${path}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SK, 'Authorization': 'Bearer ' + SK }
+      }).catch(()=>{});
+    });
+  }
+
   renderReports();
 }
 
@@ -416,7 +453,8 @@ function renderReports() {
             <div class="photo-grid">
               ${r.photos.map((p,i)=>`
                 <div class="photo-item">
-                  <img src="${p.data}" alt="Photo ${i+1}" onclick="openLightbox('${r.id}', ${i})">
+                  <img src="${p.url || p.data}" alt="Photo ${i+1}" onclick="openLightbox('${r.id}', ${i})">
+                  ${!p.url ? `<div class="photo-item-caption" style="color:var(--amber);">📱 This device only</div>` : ''}
                   ${p.caption ? `<div class="photo-item-caption">${p.caption}</div>` : ''}
                 </div>`).join('')}
             </div>
@@ -459,7 +497,7 @@ function openLightbox(reportId, photoIndex) {
   const reports = loadReports();
   const r = reports.find(x=>x.id===reportId);
   if(!r || !r.photos || !r.photos[photoIndex]) return;
-  document.getElementById('lightboxImg').src = r.photos[photoIndex].data;
+  document.getElementById('lightboxImg').src = r.photos[photoIndex].url || r.photos[photoIndex].data;
   document.getElementById('photoLightbox').classList.add('open');
 }
 
@@ -510,7 +548,7 @@ function printReport(id) {
   </div>
   ${workRows?`<div class="section-title">Work Carried Out</div><table><thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${workRows}${r.grandTotal>0?`<tr><td colspan="2" style="text-align:right;font-weight:900;color:#d42b2b;padding:6px 8px;">Total (inc. VAT): £${r.grandTotal.toFixed(2)}</td></tr>`:''}</tbody></table>`:''}
   ${checkRows?`<div class="section-title">Health Check</div><table><thead><tr><th>Item</th><th>Result</th></tr></thead><tbody>${checkRows}</tbody></table>`:''}
-  ${(r.photos&&r.photos.length)?`<div class="section-title">Photos</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:1rem;">${r.photos.map(p=>`<div style="border:1px solid #ddd;"><img src="${p.data}" style="width:100%;height:100px;object-fit:cover;display:block;">${p.caption?`<div style="font-size:9px;color:#555;padding:3px 5px;border-top:1px solid #eee;">${p.caption}</div>`:''}</div>`).join('')}</div>`:''}
+  ${(r.photos&&r.photos.length)?`<div class="section-title">Photos</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:1rem;">${r.photos.map(p=>`<div style="border:1px solid #ddd;"><img src="${p.url||p.data}" style="width:100%;height:100px;object-fit:cover;display:block;">${p.caption?`<div style="font-size:9px;color:#555;padding:3px 5px;border-top:1px solid #eee;">${p.caption}</div>`:''}</div>`).join('')}</div>`:''}
   ${r.advisoryNotes?`<div class="section-title">Advisory Notes</div><div style="background:#fff8f0;border-left:3px solid #d42b2b;padding:0.6rem 0.75rem;font-size:12px;line-height:1.6;">${r.advisoryNotes}</div>`:''}
   <div class="no-print" style="text-align:center;margin-top:2rem;">
     <button onclick="window.print()" style="background:#d42b2b;color:#fff;border:none;padding:0.7rem 2rem;font-size:1rem;cursor:pointer;margin-right:1rem;">🖨 Print / Save PDF</button>
